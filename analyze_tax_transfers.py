@@ -1,34 +1,30 @@
 import pandas as pd
+import re
 
-# Function to analyze tax transfers
+# Load the CSV file
+input_file = 'tax_transfers.csv'
+output_file = 'tax_transfer_analysis.csv'
 
-def analyze_tax_transfers(csv_file):
-    # Load the CSV file
-    data = pd.read_csv(csv_file)
+data = pd.read_csv(input_file)
 
-    # Extracting document numbers from operation descriptions
-    data['Document_Number'] = data['Operation_Description'].str.extract(r'(\d{1,10}\b)')
+# Prepare a DataFrame to store results
+results = []
 
-    # Convert date columns to datetime
-    data['Date'] = pd.to_datetime(data['Date'])
-    data['Returned_Date'] = pd.to_datetime(data['Returned_Date'])
+# Iterate through the DataFrame to find matching records
+for index, row in data.iterrows():
+    if row['Қайтарилган'] == row['Тўланган']:
+        # Regex to extract document number from the operation description
+        match = re.search(r'Н./([0-9]+)', row['Операция мазмуни'])
+        document_number = match.group(1) if match else 'Не найдено'
+        results.append({
+            'Дата': row['Операция санаси'],
+            'Из_налога': row['Солиқ коди'],
+            'В_налог': row['Солиқ номи'],
+            'Сумма': row['Тўлган'],
+            'Номер_документа': document_number
+        })
 
-    # Merging returned and paid amounts on the same date and document number
-    merged_data = pd.merge(data[['Date', 'Document_Number', 'Returned_Amount']],
-                            data[['Returned_Date', 'Document_Number', 'Paid_Amount']],
-                            left_on=['Date', 'Document_Number'],
-                            right_on=['Returned_Date', 'Document_Number'],
-                            how='inner')
-
-    # Creating a comprehensive result table
-    result_table = merged_data[['Document_Number', 'Returned_Amount', 'Paid_Amount']].copy()
-
-    # Analyzing results
-    result_table['Difference'] = result_table['Paid_Amount'] - result_table['Returned_Amount']
-    result_table['Status'] = result_table['Difference'].apply(lambda x: 'Matched' if x == 0 else 'Mismatch')
-
-    return result_table
-
-# Example usage
-# result = analyze_tax_transfers('path/to/your/file.csv')
-# print(result)
+# Create a DataFrame from results and save to a new CSV file
+results_df = pd.DataFrame(results)
+results_df.to_csv(output_file, index=False, encoding='utf-8-sig')
+print('Analysis completed and output saved to', output_file)
