@@ -1,1 +1,34 @@
-import pandas as pd\n\n# Read the CSV file\ninput_file = '06.02.2026_16-03-54.csv'\noutput_file = 'tax_transfers_result.csv'\n\ndata = pd.read_csv(input_file)\n\n# Assuming the CSV columns are named as follows:\n# 'Дата' for date, 'Номер документа' for document number, and 'Сумма' for amount in 'Қайтарилган' and 'Тўланган'.\n# Adjust the column names as per your CSV file's actual headers.\n\n# Find matching transfers\nmatches = []\nfor index, row in data.iterrows():\n    transfer_date = row['Дата']\n    document_number = row['Номер документа']\n    amount_returned = row['Қайтарилган']\n    amount_paid = row['Тўланган']\n\n    # Find matches in the dataframe\n    match = data[(data['Дата'] == transfer_date) & (data['Номер документа'] == document_number) & (data['Тўланган'] == amount_returned)]\n    if not match.empty:\n        matches.append({\n            'Дата': transfer_date,\n            'Номер документа': document_number,\n            'Қайтарилган': amount_returned,\n            'Тўланган': amount_paid\n        })\n\n# Create a DataFrame for the results and save to CSV\nresult_df = pd.DataFrame(matches)\nresult_df.to_csv(output_file, index=False)\nprint('Matching transfers saved to', output_file)
+import pandas as pd
+
+# Function to analyze tax transfers
+
+def analyze_tax_transfers(csv_file):
+    # Load the CSV file
+    data = pd.read_csv(csv_file)
+
+    # Extracting document numbers from operation descriptions
+    data['Document_Number'] = data['Operation_Description'].str.extract(r'(\d{1,10}\b)')
+
+    # Convert date columns to datetime
+    data['Date'] = pd.to_datetime(data['Date'])
+    data['Returned_Date'] = pd.to_datetime(data['Returned_Date'])
+
+    # Merging returned and paid amounts on the same date and document number
+    merged_data = pd.merge(data[['Date', 'Document_Number', 'Returned_Amount']],
+                            data[['Returned_Date', 'Document_Number', 'Paid_Amount']],
+                            left_on=['Date', 'Document_Number'],
+                            right_on=['Returned_Date', 'Document_Number'],
+                            how='inner')
+
+    # Creating a comprehensive result table
+    result_table = merged_data[['Document_Number', 'Returned_Amount', 'Paid_Amount']].copy()
+
+    # Analyzing results
+    result_table['Difference'] = result_table['Paid_Amount'] - result_table['Returned_Amount']
+    result_table['Status'] = result_table['Difference'].apply(lambda x: 'Matched' if x == 0 else 'Mismatch')
+
+    return result_table
+
+# Example usage
+# result = analyze_tax_transfers('path/to/your/file.csv')
+# print(result)
